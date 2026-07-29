@@ -333,19 +333,23 @@ function buildLines() {
 }
 function buildChars() {
   chars = [];
-  const text = cfg.text.replace(/\n/g, '');
   const lineW = width - 120;
   const perLine = max(1, floor(lineW / (cfg.fontSize * 1.0)));
-  let charIdx = 0;
-  for (let li = cfg.startLine - 1; li < lines.length; li++) {
-    if (charIdx >= text.length) break;
-    const line = lines[li];
-    const remain = text.length - charIdx;
-    const thisLine = min(perLine, remain);
-    for (let i = 0; i < thisLine; i++) {
-      const t = (i + 0.5) / perLine;
-      chars.push(new Char(line, t, text[charIdx]));
-      charIdx++;
+  // 按输入换行分段：每个 \n 强制换到下一条横线；超长段落自动折行
+  const segs = cfg.text.split('\n');
+  let li = cfg.startLine - 1;
+  for (const seg of segs) {
+    if (li >= lines.length) break;
+    if (seg.length === 0) { li++; continue; }  // 空行也占一条横线
+    for (let i = 0; i < seg.length; i += perLine) {
+      if (li >= lines.length) break;
+      const line = lines[li];
+      const chunk = seg.slice(i, i + perLine);
+      for (let j = 0; j < chunk.length; j++) {
+        const t = (j + 0.5) / perLine;
+        chars.push(new Char(line, t, chunk[j]));
+      }
+      li++;
     }
   }
 }
