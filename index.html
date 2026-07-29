@@ -38,6 +38,11 @@
   .direction-btn { flex: 1; padding: 6px 0; border: 1px solid #2a2a3a; border-radius: 5px; background: #1a1a24; color: #888; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s; }
   .direction-btn:hover { border-color: #6366f1; color: #bbb; }
   .direction-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; box-shadow: 0 0 10px rgba(99,102,241,0.3); }
+  .align-group { display: flex; gap: 4px; }
+  .align-btn { width: 26px; height: 26px; border: 1px solid #2a2a3a; border-radius: 5px; background: #1a1a24; color: #888; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.2s; }
+  .align-btn:hover { border-color: #6366f1; color: #bbb; }
+  .align-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; box-shadow: 0 0 10px rgba(99,102,241,0.3); }
+  .align-btn svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; }
   .color-row { display: flex; gap: 8px; align-items: center; }
   .color-pick { display: flex; align-items: center; gap: 5px; flex: 1; }
   .color-pick label { font-size: 10px; color: #aaa; white-space: nowrap; }
@@ -81,7 +86,12 @@
     <div class="panel-title">作文纸互动【老黑】</div>
 
     <div class="param-item">
-      <div class="param-label"><span>文字</span></div>
+      <div class="param-label"><span>文字</span>
+        <div class="align-group">
+          <button class="align-btn active" id="alignLeft" title="左对齐"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></button>
+          <button class="align-btn" id="alignCenter" title="居中对齐"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="7" y1="18" x2="17" y2="18"/></svg></button>
+        </div>
+      </div>
       <textarea class="text-input" id="textInput" rows="3">黑白之间寻绚烂，老黑敬。</textarea>
     </div>
 
@@ -167,6 +177,7 @@ const presets = {
 const cfg = {
   text: '黑白之间寻绚烂，老黑敬。',
   fontName: 'sans-serif',
+  align: 'left',
   lineCount: 8,
   startLine: 2,
   fontSize: 40,
@@ -345,8 +356,9 @@ function buildChars() {
       if (li >= lines.length) break;
       const line = lines[li];
       const chunk = seg.slice(i, i + perLine);
+      const offset = cfg.align === 'center' ? (perLine - chunk.length) / 2 : 0;
       for (let j = 0; j < chunk.length; j++) {
-        const t = (j + 0.5) / perLine;
+        const t = (offset + j + 0.5) / perLine;
         chars.push(new Char(line, t, chunk[j]));
       }
       li++;
@@ -418,6 +430,14 @@ sliderIds.forEach(id => {
 });
 
 document.getElementById('textInput').addEventListener('input', (e) => { cfg.text = e.target.value; buildChars(); paintBg(); });
+['alignLeft', 'alignCenter'].forEach(id => {
+  document.getElementById(id).addEventListener('click', () => {
+    document.querySelectorAll('.align-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    cfg.align = id === 'alignLeft' ? 'left' : 'center';
+    buildChars(); paintBg();
+  });
+});
 document.getElementById('fontInput').addEventListener('input', (e) => { cfg.fontName = e.target.value; });
 document.getElementById('fontFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
