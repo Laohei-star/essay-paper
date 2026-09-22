@@ -149,6 +149,7 @@
     <div class="btn-row">
       <button class="ghost-btn" id="shakeBtn">抖落文字</button>
       <button class="ghost-btn" id="resetBtn">重置归位</button>
+      <button class="ghost-btn" id="resetDefaultsBtn">恢复默认</button>
     </div>
     <button class="save-btn" id="saveBtn">保存图片</button>
   </div>
@@ -189,95 +190,99 @@ const cfg = {
   bg: '#f5f0e6',
 };
 
-
-// ============ 数据持久化 ============
-var LS_PREFIX = 'essay_';
-var LS_IMAGE_MAX = 4 * 1024 * 1024;
+// === localStorage 持久化 ===
+const LS_PREFIX = 'essay_';
 
 function persistCfg(key, value) {
-  try { localStorage.setItem(LS_PREFIX + key, String(value)); }
-  catch (e) { console.warn('[persist] localStorage 写入失败（' + key + '）:', e.message); }
+  try { localStorage.setItem(LS_PREFIX + key, String(value)); } catch(e) {}
 }
 
-function persistFont(dataUrl, fontName) {
-  if (!dataUrl) return;
-  if (dataUrl.length > LS_IMAGE_MAX) {
-    console.warn('[persist] 字体过大，未存 localStorage');
-    return;
-  }
+function persistFont(dataURL, fileName) {
   try {
-    localStorage.setItem(LS_PREFIX + 'font', dataUrl);
-    localStorage.setItem(LS_PREFIX + 'fontName', fontName);
-  } catch (e) { console.warn('[persist] 字体存 localStorage 失败:', e.message); }
-}
-function clearPersistedFont() {
-  localStorage.removeItem(LS_PREFIX + 'font');
-  localStorage.removeItem(LS_PREFIX + 'fontName');
-}
-
-function restoreCfg() {
-  var keys = ['text', 'fontName', 'align', 'lineCount', 'startLine', 'fontSize', 'toughness', 'gravity', 'damping', 'lineColor', 'textColor', 'bg'];
-  var count = 0;
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
-    var v = localStorage.getItem(LS_PREFIX + k);
-    if (v === null) continue;
-    if (typeof cfg[k] === 'boolean') cfg[k] = (v === 'true');
-    else if (typeof cfg[k] === 'number') cfg[k] = parseFloat(v);
-    else if (typeof cfg[k] === 'string') cfg[k] = v;
-    count++;
-  }
-  if (count === 0) return false;
-  syncUIFromCfg();
-  console.log('[persist] 还原', count, '个参数');
-  return true;
-}
-
-function syncUIFromCfg() {
-  var $ = function(id) { return document.getElementById(id); };
-  // Sync all range inputs that match cfg keys
-  for (var k in cfg) {
-    var el = $(k);
-    if (el && el.type === 'range') {
-      el.value = cfg[k];
-      // trigger label update
-      if (el.oninput) el.oninput({target: el});
-      else el.dispatchEvent(new Event('input', {bubbles: true}));
-    }
-  }
-  // Sync color inputs
-  for (var k2 in cfg) {
-    var el2 = $(k2);
-    if (el2 && el2.type === 'color') {
-      el2.value = cfg[k2];
-      el2.dispatchEvent(new Event('input', {bubbles: true}));
-    }
-  }
-  // Sync text inputs
-  var ti = $('textInput');
-  if (ti && cfg.text !== undefined) { ti.value = cfg.text; ti.dispatchEvent(new Event('input', {bubbles: true})); }
-  var fn = $('fontName') || $('fontInput');
-  if (fn && cfg.fontName !== undefined) { 
-    if (fn.tagName === 'INPUT') { fn.value = cfg.fontName; }
-  }
-
+    localStorage.setItem(LS_PREFIX + 'fontData', dataURL);
+    localStorage.setItem(LS_PREFIX + 'fontFileName', fileName);
+  } catch(e) {}
 }
 
 function restoreFont() {
-  var src = localStorage.getItem(LS_PREFIX + 'font');
-  if (!src) return false;
-  var fname = localStorage.getItem(LS_PREFIX + 'fontName') || 'custom';
-  var face = new FontFace(fname, 'url(' + src + ')');
-  face.load().then(function(f) {
-    document.fonts.add(f);
-    if (typeof cfg !== 'undefined' && cfg.fontName !== undefined) cfg.fontName = fname;
-    var fn = document.getElementById('fontName') || document.getElementById('fontFileName');
-    if (fn) { if (fn.tagName === 'INPUT') fn.value = fname; }
-    console.log('[persist] 还原字体:', fname);
-  }).catch(function(e) {
-    console.warn('[persist] 还原字体失败:', e.message);
+  if (!cfg.fontName || !cfg.fontName.startsWith('custom_')) return;
+  let dataURL, fileName;
+  try {
+    dataURL = localStorage.getItem(LS_PREFIX + 'fontData');
+    fileName = localStorage.getItem(LS_PREFIX + 'fontFileName');
+  } catch(e) { return; }
+  if (!dataURL) return;
+  try {
+    const fontFace = new FontFace(cfg.fontName, `url(${dataURL})`);
+    fontFace.load().then((loaded) => {
+      document.fonts.add(loaded);
+      const fi = document.getElementById('fontInput');
+      if (fi && fileName) fi.value = fileName;
+      const ffn = document.getElementById('fontFileName');
+      if (ffn && fileName) ffn.textContent = fileName;
+    }).catch(() => {});
+  } catch(e) {}
+}
+
+function syncUIFromCfg() {
+  const sliderIds = ['lineCount', 'startLine', 'fontSize', 'toughness', 'gravity', 'damping'];
+  sliderIds.forEach(id => {
+    const slider = document.getElementById(id);
+    const valEl = document.getElementById('val-' + id);
+    if (!slider) return;
+    let v;
+    if (id === 'damping') {
+      v = (cfg.damping - 0.9) / 0.1;
+    } else {
+      v = cfg[id];
+    }
+    v = parseFloat(v);
+    if (isNaN(v)) return;
+    slider.value = v;
+    if (valEl) valEl.textContent = fmtVal(id, v);
   });
-  return true;
+  const textInput = document.getElementById('textInput');
+  if (textInput) textInput.value = cfg.text;
+  document.querySelectorAll('.align-btn').forEach(b => b.classList.remove('active'));
+  const alignBtn = document.getElementById(cfg.align === 'center' ? 'alignCenter' : 'alignLeft');
+  if (alignBtn) alignBtn.classList.add('active');
+  if (!cfg.fontName || !cfg.fontName.startsWith('custom_')) {
+    const fontInput = document.getElementById('fontInput');
+    if (fontInput) fontInput.value = cfg.fontName;
+  }
+  const bgEl = document.getElementById('bgColor');
+  if (bgEl) bgEl.value = cfg.bg;
+  const lineEl = document.getElementById('lineColor');
+  if (lineEl) lineEl.value = cfg.lineColor;
+  const textColEl = document.getElementById('textColor');
+  if (textColEl) textColEl.value = cfg.textColor;
+  document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+  for (const [name, p] of Object.entries(presets)) {
+    if (cfg.bg === p.bg && cfg.lineColor === p.line && cfg.textColor === p.text) {
+      const btn = document.querySelector(`[data-preset="${name}"]`);
+      if (btn) btn.classList.add('active');
+      break;
+    }
+  }
+}
+
+function restoreCfg() {
+  const keys = ['text', 'fontName', 'align', 'lineCount', 'startLine', 'fontSize', 'toughness', 'gravity', 'damping', 'lineColor', 'textColor', 'bg'];
+  for (const k of keys) {
+    const v = localStorage.getItem(LS_PREFIX + k);
+    if (v === null) continue;
+    if (typeof cfg[k] === 'number') cfg[k] = parseFloat(v);
+    else cfg[k] = v;
+  }
+  syncUIFromCfg();
+  restoreFont();
+}
+
+function clearPersist() {
+  const keys = ['text', 'fontName', 'align', 'lineCount', 'startLine', 'fontSize', 'toughness', 'gravity', 'damping', 'lineColor', 'textColor', 'bg', 'fontData', 'fontFileName'];
+  for (const k of keys) {
+    try { localStorage.removeItem(LS_PREFIX + k); } catch(e) {}
+  }
 }
 
 function setup() {
@@ -291,6 +296,7 @@ function setup() {
     isDragging = false;
     for (const ln of lines) for (const p of ln.points) p.grabbed = false;
   });
+  restoreCfg();
   buildLines();
   buildChars();
   paintBg();
@@ -510,26 +516,31 @@ sliderIds.forEach(id => {
   slider.addEventListener('input', () => {
     const v = parseFloat(slider.value);
     valEl.textContent = fmtVal(id, v);
-    if (id === 'lineCount') { cfg.lineCount = v; buildLines(); buildChars(); }
-    else if (id === 'startLine') { cfg.startLine = v; buildChars(); }
-    else if (id === 'fontSize') { cfg.fontSize = v; buildChars(); }
-    else if (id === 'toughness') { cfg.toughness = v; }
-    else if (id === 'gravity') { cfg.gravity = v; }
-    else if (id === 'damping') { cfg.damping = v * 0.1 + 0.9; }
+    if (id === 'lineCount') { cfg.lineCount = v; buildLines(); buildChars(); persistCfg('lineCount', v); }
+    else if (id === 'startLine') { cfg.startLine = v; buildChars(); persistCfg('startLine', v); }
+    else if (id === 'fontSize') { cfg.fontSize = v; buildChars(); persistCfg('fontSize', v); }
+    else if (id === 'toughness') { cfg.toughness = v; persistCfg('toughness', v); }
+    else if (id === 'gravity') { cfg.gravity = v; persistCfg('gravity', v); }
+    else if (id === 'damping') { cfg.damping = v * 0.1 + 0.9; persistCfg('damping', cfg.damping); }
     paintBg();
   });
 });
 
-document.getElementById('textInput').addEventListener('input', (e) => { try { persistCfg('text', cfg.text); } catch(e) {} cfg.text = e.target.value; buildChars(); paintBg(); });
+document.getElementById('textInput').addEventListener('input', (e) => { cfg.text = e.target.value; buildChars(); paintBg(); persistCfg('text', cfg.text); });
 ['alignLeft', 'alignCenter'].forEach(id => {
   document.getElementById(id).addEventListener('click', () => {
     document.querySelectorAll('.align-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     cfg.align = id === 'alignLeft' ? 'left' : 'center';
     buildChars(); paintBg();
+    persistCfg('align', cfg.align);
   });
 });
-document.getElementById('fontInput').addEventListener('input', (e) => { cfg.fontName = e.target.value; });
+document.getElementById('fontInput').addEventListener('input', (e) => {
+  cfg.fontName = e.target.value;
+  persistCfg('fontName', cfg.fontName);
+  try { localStorage.removeItem(LS_PREFIX + 'fontData'); localStorage.removeItem(LS_PREFIX + 'fontFileName'); } catch(e) {}
+});
 document.getElementById('fontFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -542,6 +553,8 @@ document.getElementById('fontFile').addEventListener('change', (e) => {
       document.fonts.add(loaded);
       cfg.fontName = family;
       document.getElementById('fontInput').value = file.name;
+      persistCfg('fontName', family);
+      persistFont(reader.result, file.name);
     }).catch((err) => { document.getElementById('fontFileName').textContent = '加载失败：' + err; });
   };
   reader.readAsDataURL(file);
@@ -557,6 +570,9 @@ document.querySelectorAll('[data-preset]').forEach(btn => {
     document.getElementById('lineColor').value = p.line;
     document.getElementById('textColor').value = p.text;
     paintBg();
+    persistCfg('bg', cfg.bg);
+    persistCfg('lineColor', cfg.lineColor);
+    persistCfg('textColor', cfg.textColor);
   });
 });
 ['bgColor', 'lineColor', 'textColor'].forEach(id => {
@@ -565,6 +581,7 @@ document.querySelectorAll('[data-preset]').forEach(btn => {
     cfg[key] = e.target.value;
     if (id === 'bgColor') paintBg();
     document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    persistCfg(key, cfg[key]);
   });
 });
 
@@ -574,6 +591,27 @@ document.getElementById('shakeBtn').addEventListener('click', () => {
   }
 });
 document.getElementById('resetBtn').addEventListener('click', () => { buildLines(); buildChars(); paintBg(); });
+document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
+  clearPersist();
+  cfg.text = '黑白之间寻绚烂，老黑敬。';
+  cfg.fontName = 'sans-serif';
+  cfg.align = 'left';
+  cfg.lineCount = 8;
+  cfg.startLine = 2;
+  cfg.fontSize = 40;
+  cfg.toughness = 3;
+  cfg.gravity = 0.15;
+  cfg.damping = 0.95;
+  cfg.lineColor = '#d4706a';
+  cfg.textColor = '#2a2a2a';
+  cfg.bg = '#f5f0e6';
+  const ffn = document.getElementById('fontFileName');
+  if (ffn) ffn.textContent = '';
+  const ff = document.getElementById('fontFile');
+  if (ff) ff.value = '';
+  syncUIFromCfg();
+  buildLines(); buildChars(); paintBg();
+});
 
 const panel = document.getElementById('panel');
 const toggleBtn = document.getElementById('toggleBtn');
