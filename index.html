@@ -149,8 +149,8 @@
     <div class="btn-row">
       <button class="ghost-btn" id="shakeBtn">抖落文字</button>
       <button class="ghost-btn" id="resetBtn">重置归位</button>
-      <button class="ghost-btn" id="resetDefaultsBtn">恢复默认</button>
     </div>
+    <button class="save-btn" id="resetCfgBtn" style="background: linear-gradient(135deg, #ef4444, #f97316); margin-bottom: 0;">重置参数</button>
     <button class="save-btn" id="saveBtn">保存图片</button>
   </div>
 
@@ -591,7 +591,7 @@ document.getElementById('shakeBtn').addEventListener('click', () => {
   }
 });
 document.getElementById('resetBtn').addEventListener('click', () => { buildLines(); buildChars(); paintBg(); });
-document.getElementById('resetDefaultsBtn').addEventListener('click', () => {
+document.getElementById('resetCfgBtn').addEventListener('click', () => {
   clearPersist();
   cfg.text = '黑白之间寻绚烂，老黑敬。';
   cfg.fontName = 'sans-serif';
